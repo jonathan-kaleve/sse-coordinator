@@ -1,5 +1,10 @@
 # sse-coordinator
 
+[![npm version](https://img.shields.io/npm/v/sse-coordinator)](https://www.npmjs.com/package/sse-coordinator)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/sse-coordinator)](https://bundlephobia.com/package/sse-coordinator)
+[![license](https://img.shields.io/npm/l/sse-coordinator)](./LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue)](https://www.typescriptlang.org/)
+
 Share a single SSE connection across all browser tabs using BroadcastChannel leader election.
 
 ## The Problem
@@ -25,6 +30,8 @@ When the leader tab closes, a follower automatically promotes itself and opens a
 npm install sse-coordinator
 # or
 bun add sse-coordinator
+# or
+pnpm add sse-coordinator
 ```
 
 ## Usage
@@ -123,3 +130,7 @@ Requires [BroadcastChannel API](https://caniuse.com/broadcastchannel) and [`cryp
 ## License
 
 MIT
+
+---
+
+Made by [Pareo](https://pareo.ai)
