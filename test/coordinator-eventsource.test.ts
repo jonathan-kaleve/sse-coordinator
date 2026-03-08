@@ -82,14 +82,14 @@ afterEach(() => {
 });
 
 describe('SSECoordinator - EventSource creation', () => {
-  it('creates EventSource with credentials when promoted to leader', () => {
+  it('creates EventSource without credentials by default when promoted to leader', () => {
     coordinator = new SSECoordinator();
     coordinator.connect({ url: TEST_URL, eventTypes: TEST_EVENTS, onEvent: () => {} });
     jest.advanceTimersByTime(200);
 
     expect(coordinator.isLeader()).toBe(true);
     expect(createdEventSources).toHaveLength(1);
-    expect(createdEventSources[0].withCredentials).toBe(true);
+    expect(createdEventSources[0].withCredentials).toBe(false);
     expect(createdEventSources[0].url).toBe(TEST_URL);
   });
 

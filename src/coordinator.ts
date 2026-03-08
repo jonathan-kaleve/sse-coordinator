@@ -19,16 +19,39 @@ export class SSECoordinator {
   private tabId: string;
   private currentOptions: SSECoordinatorOptions | null = null;
   private heartbeatInterval: number | null = null;
-  private heartbeatTimeoutId: number | null = null;
+  private heartbeatMonitorId: number | null = null;
   private lastLeaderHeartbeat: number = Date.now();
   private reconnectAttempts = 0;
 
   constructor() {
-    this.tabId = `tab-${Math.random().toString(36).substring(2, 11)}`;
+    this.tabId = `tab-${crypto.randomUUID()}`;
   }
 
   connect(options: SSECoordinatorOptions): void {
+    // Validate URL before doing anything
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(options.url);
+    } catch {
+      throw new Error(`Invalid URL: ${options.url}`);
+    }
+    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+      throw new Error(`URL must use http or https protocol: ${options.url}`);
+    }
+
+    // Guard against double-connect: clean up any existing resources
+    if (this.channel) {
+      this.closeEventSource();
+      this.stopHeartbeat();
+      this.stopHeartbeatMonitoring();
+      this.channel.close();
+      this.channel = null;
+      this.isLeaderTab = false;
+      this.reconnectAttempts = 0;
+    }
+
     this.currentOptions = options;
+    this.lastLeaderHeartbeat = Date.now();
 
     const channelName = options.channelName ?? DEFAULT_CHANNEL_NAME;
     this.channel = new BroadcastChannel(channelName);
@@ -64,8 +87,13 @@ export class SSECoordinator {
   }
 
   handleBroadcastMessage(messageOrEvent: BroadcastMessage | MessageEvent): void {
-    const message: BroadcastMessage =
-      'data' in messageOrEvent ? (messageOrEvent as MessageEvent).data : messageOrEvent;
+    const raw: unknown =
+      messageOrEvent && typeof messageOrEvent === 'object' && 'data' in messageOrEvent
+        ? (messageOrEvent as MessageEvent).data
+        : messageOrEvent;
+
+    if (!this.isValidBroadcastMessage(raw)) return;
+    const message = raw;
 
     if (message.tabId === this.tabId) return;
 
@@ -99,6 +127,12 @@ export class SSECoordinator {
     this.stopHeartbeat();
   }
 
+  private isValidBroadcastMessage(msg: unknown): msg is BroadcastMessage {
+    if (!msg || typeof msg !== 'object') return false;
+    const m = msg as Record<string, unknown>;
+    return m.type === 'sse-event' || m.type === 'heartbeat' || m.type === 'leader-disconnect';
+  }
+
   private checkForExistingLeader(): void {
     let hasLeader = false;
 
@@ -128,11 +162,16 @@ export class SSECoordinator {
     this.isLeaderTab = true;
     this.createEventSource();
     this.startHeartbeat();
+    // Announce leadership immediately so other tabs don't also promote
+    this.broadcast({ type: 'heartbeat', tabId: this.tabId, timestamp: Date.now() });
   }
 
   private attemptPromotion(): void {
+    const heartbeatAtStart = this.lastLeaderHeartbeat;
     setTimeout(() => {
-      if (!this.isLeaderTab) {
+      // Only promote if no new leader heartbeat arrived since we started waiting
+      const newLeaderAnnounced = this.lastLeaderHeartbeat > heartbeatAtStart;
+      if (!this.isLeaderTab && !newLeaderAnnounced) {
         this.promoteToLeader();
       }
     }, PROMOTION_DELAY);
@@ -141,7 +180,7 @@ export class SSECoordinator {
   private createEventSource(): void {
     if (this.eventSource || !this.currentOptions) return;
 
-    const { url, eventTypes, withCredentials = true } = this.currentOptions;
+    const { url, eventTypes, withCredentials = false } = this.currentOptions;
     this.eventSource = new EventSource(url, { withCredentials });
 
     this.eventSource.onopen = () => {
@@ -220,7 +259,7 @@ export class SSECoordinator {
 
   private startHeartbeatMonitoring(): void {
     this.stopHeartbeatMonitoring();
-    this.heartbeatTimeoutId = setInterval(() => {
+    this.heartbeatMonitorId = setInterval(() => {
       if (this.isLeaderTab) return;
       if (Date.now() - this.lastLeaderHeartbeat > HEARTBEAT_TIMEOUT) {
         this.log('warn', 'Leader heartbeat timeout, attempting promotion');
@@ -230,9 +269,9 @@ export class SSECoordinator {
   }
 
   private stopHeartbeatMonitoring(): void {
-    if (this.heartbeatTimeoutId) {
-      clearInterval(this.heartbeatTimeoutId);
-      this.heartbeatTimeoutId = null;
+    if (this.heartbeatMonitorId) {
+      clearInterval(this.heartbeatMonitorId);
+      this.heartbeatMonitorId = null;
     }
   }
 
