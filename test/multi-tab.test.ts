@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach, jest, mock } from 'bun:test';
 import { SSECoordinator } from '../src/coordinator';
 
 /**
@@ -137,6 +137,49 @@ describe('Multi-tab leader election', () => {
     expect([a, b, c].filter(x => !x.isLeader())).toHaveLength(2);
 
     [a, b, c].forEach(x => x.disconnect());
+  });
+
+  it('fires onConnectionChange(true) on the promoted tab after leader failover', () => {
+    let createdSources: any[] = [];
+
+    class TrackingEventSource {
+      onopen: ((e: Event) => void) | null = null;
+      onerror: ((e: Event) => void) | null = null;
+      constructor() { createdSources.push(this); }
+      addEventListener() {}
+      removeEventListener() {}
+      close() {}
+      fireOpen() { this.onopen?.(new Event('open')); }
+    }
+    globalThis.EventSource = TrackingEventSource as any;
+
+    const onChangePrimary = mock(() => {});
+    const onChangeFollower = mock(() => {});
+
+    const a = new SSECoordinator();
+    a.connect({ url: TEST_URL, eventTypes: TEST_EVENTS, channelName: CHANNEL, onEvent: () => {}, onConnectionChange: onChangePrimary });
+    const b = new SSECoordinator();
+    b.connect({ url: TEST_URL, eventTypes: TEST_EVENTS, channelName: CHANNEL, onEvent: () => {}, onConnectionChange: onChangeFollower });
+
+    jest.advanceTimersByTime(200);
+
+    // Only the leader (a) created an EventSource
+    expect(createdSources).toHaveLength(1);
+    createdSources[0].fireOpen();
+    expect(onChangePrimary).toHaveBeenCalledWith(true);
+    expect(onChangeFollower).not.toHaveBeenCalledWith(true);
+
+    onChangePrimary.mockClear();
+
+    // Leader disconnects; follower promotes and opens its own EventSource
+    a.disconnect();
+    jest.advanceTimersByTime(200);
+
+    expect(createdSources).toHaveLength(2);
+    createdSources[1].fireOpen();
+    expect(onChangeFollower).toHaveBeenCalledWith(true);
+
+    b.disconnect();
   });
 
   it('a late-joining tab detects the leader at its next scheduled heartbeat and stays a follower', () => {

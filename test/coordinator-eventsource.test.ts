@@ -296,6 +296,24 @@ describe('SSECoordinator - reconnect logic', () => {
 
     expect(createdEventSources.length).toBe(initialSources);
   });
+
+  it('cancels pending reconnect timer when disconnect() is called', () => {
+    coordinator = new SSECoordinator();
+    coordinator.connect({ url: TEST_URL, eventTypes: TEST_EVENTS, onEvent: () => {} });
+    jest.advanceTimersByTime(200);
+
+    const initialSources = createdEventSources.length;
+    (coordinator as any).handleReconnect();
+
+    expect((coordinator as any).reconnectTimeoutId).not.toBeNull();
+
+    coordinator.disconnect();
+
+    expect((coordinator as any).reconnectTimeoutId).toBeNull();
+
+    jest.advanceTimersByTime(5000);
+    expect(createdEventSources.length).toBe(initialSources);
+  });
 });
 
 describe('SSECoordinator - closeEventSource', () => {

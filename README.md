@@ -71,7 +71,7 @@ Starts the coordinator. The tab will either become leader (opening an `EventSour
 | `eventTypes` | `string[]` | ✓ | — | Named event types to listen for |
 | `onEvent` | `(event: SSEEvent) => void` | ✓ | — | Called for every SSE event |
 | `channelName` | `string` | | `'sse-coordinator'` | BroadcastChannel name — must match across tabs |
-| `withCredentials` | `boolean` | | `true` | Pass cookies with the EventSource request |
+| `withCredentials` | `boolean` | | `false` | Pass cookies with the EventSource request |
 | `maxReconnectAttempts` | `number` | | `10` | Max reconnection attempts before calling `onError` |
 | `logger` | `Logger` | | none | Optional logger (`{ debug, info, warn, error }`) |
 | `onError` | `(error: Error) => void` | | — | Called when max reconnections are exceeded |
@@ -118,7 +118,7 @@ coordinator.connect({
 
 ## Browser Support
 
-Requires [BroadcastChannel API](https://caniuse.com/broadcastchannel) — supported in all modern browsers (Chrome 54+, Firefox 38+, Safari 15.4+, Edge 79+).
+Requires [BroadcastChannel API](https://caniuse.com/broadcastchannel) and [`crypto.randomUUID()`](https://caniuse.com/mdn-api_crypto_randomuuid) — supported in Chrome 92+, Firefox 95+, Safari 15.4+, Edge 92+.
 
 ## License
 

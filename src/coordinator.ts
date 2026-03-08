@@ -20,11 +20,17 @@ export class SSECoordinator {
   private currentOptions: SSECoordinatorOptions | null = null;
   private heartbeatInterval: number | null = null;
   private heartbeatMonitorId: number | null = null;
+  private reconnectTimeoutId: number | null = null;
   private lastLeaderHeartbeat: number = Date.now();
   private reconnectAttempts = 0;
 
   constructor() {
-    this.tabId = `tab-${crypto.randomUUID()}`;
+    // crypto.randomUUID() is preferred; fall back for environments that don't support it
+    this.tabId = `tab-${
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+    }`;
   }
 
   connect(options: SSECoordinatorOptions): void {
@@ -44,6 +50,7 @@ export class SSECoordinator {
       this.closeEventSource();
       this.stopHeartbeat();
       this.stopHeartbeatMonitoring();
+      this.stopReconnectTimer();
       this.channel.close();
       this.channel = null;
       this.isLeaderTab = false;
@@ -69,6 +76,7 @@ export class SSECoordinator {
     this.closeEventSource();
     this.stopHeartbeat();
     this.stopHeartbeatMonitoring();
+    this.stopReconnectTimer();
 
     if (this.channel) {
       this.channel.close();
@@ -235,12 +243,14 @@ export class SSECoordinator {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
     this.log('debug', `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${maxAttempts})`);
 
-    setTimeout(() => {
+    this.stopReconnectTimer();
+    this.reconnectTimeoutId = setTimeout(() => {
+      this.reconnectTimeoutId = null;
       if (this.isLeaderTab) {
         this.closeEventSource();
         this.createEventSource();
       }
-    }, delay);
+    }, delay) as unknown as number;
   }
 
   private startHeartbeat(): void {
@@ -272,6 +282,13 @@ export class SSECoordinator {
     if (this.heartbeatMonitorId) {
       clearInterval(this.heartbeatMonitorId);
       this.heartbeatMonitorId = null;
+    }
+  }
+
+  private stopReconnectTimer(): void {
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId);
+      this.reconnectTimeoutId = null;
     }
   }
 
