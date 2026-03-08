@@ -4,6 +4,13 @@
   "description": "Share a single SSE connection across browser tabs using BroadcastChannel leader election",
   "keywords": ["sse", "server-sent-events", "broadcast-channel", "multi-tab", "leader-election", "eventsource"],
   "license": "MIT",
+  "author": "Jonathan Kaleve",
+  "homepage": "https://pareo.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jonathan-kaleve/sse-coordinator.git"
+  },
+  "bugs": "https://github.com/jonathan-kaleve/sse-coordinator/issues",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
